@@ -1,0 +1,102 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+require(Matrix)
+
+# Change to the working directory where the data files are located.
+# TODO: You should change the following ... to your working directory
+setwd("...")
+```
+
+
+```{r}
+# Read all individual lines in a text file.
+# m = the number of training examples
+dataFile <- file("articles.train", "r")
+dataLines <- readLines(dataFile)
+m <- length(dataLines)
+close(dataFile)
+```
+
+
+```{r}
+dataTokens = strsplit(dataLines, "[: ]")
+
+# Extract every first token from each line as a vector of numbers, which is the class label.
+Ytrain = sapply(dataTokens, function(example) {as.numeric(example[1])})
+
+# Extract the rest of tokens from each line as a list of matrices (one matrix for each line)
+# where each row consists of two columns: (feature number, its occurrences)
+X_list = lapply(dataTokens, function(example) {n = length(example) - 1; matrix(as.numeric(example[2:(n+1)]), ncol=2, byrow=T)})
+
+# Add one column that indicates the example number at the left
+X_list = mapply(cbind, x=1:length(X_list), y=X_list)
+
+# Merge a list of different examples vertcially into a matrix
+X_data = do.call('rbind', X_list)
+#X_data has all the words in each example and the no of occourences of each of those words.
+
+# Get a sparse data matrix X (rows: training exmaples, columns: # of occurrences for each of features)
+Xtrain = sparseMatrix(x=X_data[,3], i=X_data[,1], j=X_data[,2])
+#summary(X)
+#summary(Y)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+Y1 <- as.factor(ifelse(Ytrain==1, 1,-1))
+#summary(Y1)
+Y2 <- as.factor(ifelse(Ytrain==2, 1,-1))
+Y3 <- as.factor(ifelse(Ytrain==3, 1,-1))
+Y4 <- as.factor(ifelse(Ytrain==4, 1,-1))
+```
+
+```{r}
+library(e1071)
+svm_y1 = svm(x=Xtrain, y=Y1, type='C-classification',kernel='linear',scale=FALSE)
+#svm_y2 = svm(X, Y2, type='C-classification',kernel='linear',scale=FALSE)
+#svm_y3 = svm(X, Y3, type='C-classification',kernel='linear',scale=FALSE)
+#svm_y4 = svm(X, Y4, type='C-classification',kernel='linear',scale=FALSE)
+```
+
+```{r}
+dataFile <- file("articles.test", "r")
+dataLines <- readLines(dataFile)
+m <- length(dataLines)
+close(dataFile)
+dataTokens = strsplit(dataLines, "[: ]")
+
+# Extract every first token from each line as a vector of numbers, which is the class label.
+Ytest = sapply(dataTokens, function(example) {as.numeric(example[1])})
+
+# Extract the rest of tokens from each line as a list of matrices (one matrix for each line)
+# where each row consists of two columns: (feature number, its occurrences)
+X_list = lapply(dataTokens, function(example) {n = length(example) - 1; matrix(as.numeric(example[2:(n+1)]), ncol=2, byrow=T)})
+
+# Add one column that indicates the example number at the left
+X_list = mapply(cbind, x=1:length(X_list), y=X_list)
+
+# Merge a list of different examples vertcially into a matrix
+X_data = do.call('rbind', X_list)
+#X_data has all the words in each example and the no of occourences of each of those words.
+
+# Get a sparse data matrix X (rows: training exmaples, columns: # of occurrences for each of features)
+Xtest = sparseMatrix(x=X_data[,3], i=X_data[,1], j=X_data[,2])
+```
+
+```{r}
+Ytest1 <- as.factor(ifelse(Ytest==1,1,-1))
+pred1 <-predict(svm_y1,Xtest)
+summary(pred1)
+```
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

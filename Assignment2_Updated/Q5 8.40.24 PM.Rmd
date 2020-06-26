@@ -1,0 +1,349 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+require(Matrix)
+
+# Change to the working directory where the data files are located.
+# TODO: You should change the following ... to your working directory
+setwd("...")
+```
+
+
+```{r}
+# Read all individual lines in a text file.
+# m = the number of training examples
+dataFile <- file("articles.train", "r")
+dataLines <- readLines(dataFile)
+m <- length(dataLines)
+close(dataFile)
+```
+
+
+```{r}
+dataTokens = strsplit(dataLines, "[: ]")
+
+# Extract every first token from each line as a vector of numbers, which is the class label.
+Ytrain = sapply(dataTokens, function(example) {as.numeric(example[1])})
+
+# Extract the rest of tokens from each line as a list of matrices (one matrix for each line)
+# where each row consists of two columns: (feature number, its occurrences)
+X_list = lapply(dataTokens, function(example) {n = length(example) - 1; matrix(as.numeric(example[2:(n+1)]), ncol=2, byrow=T)})
+
+
+# Add one column that indicates the example number at the left
+X_list = mapply(cbind, x=1:length(X_list), y=X_list)
+
+# Merge a list of different examples vertcially into a matrix
+X_data = do.call('rbind', X_list)
+#X_data has all the words in each example and the no of occourences of each of those words.
+
+# Get a sparse data matrix X (rows: training exmaples, columns: # of occurrences for each of features)
+Xtrain = sparseMatrix(x=X_data[,3], i=X_data[,1], j=X_data[,2]) #Frequency, which article, Word
+#summary(Xtrain)
+#summary(Y)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
+Y1 <- ifelse(Ytrain==1, 1,-1)
+#summary(Y1)
+Y2 <- ifelse(Ytrain==2, 1,-1)
+Y3 <- ifelse(Ytrain==3, 1,-1)
+Y4 <- ifelse(Ytrain==4, 1,-1)
+```
+
+```{r}
+library(e1071)
+svm_y1 = svm(x=Xtrain, y=Y1, type='C-classification',kernel='linear',scale=FALSE)
+svm_y2 = svm(x=Xtrain, y=Y2, type='C-classification',kernel='linear',scale=FALSE)
+svm_y3 = svm(x=Xtrain, y=Y3, type='C-classification',kernel='linear',scale=FALSE)
+svm_y4 = svm(x=Xtrain, y=Y4, type='C-classification',kernel='linear',scale=FALSE)
+```
+
+```{r}
+dataFile <- file("articles.test", "r")
+dataLines <- readLines(dataFile)
+m <- length(dataLines)
+close(dataFile)
+dataTokens = strsplit(dataLines, "[: ]")
+
+# Extract every first token from each line as a vector of numbers, which is the class label.
+Ytest = sapply(dataTokens, function(example) {as.numeric(example[1])})
+
+# Extract the rest of tokens from each line as a list of matrices (one matrix for each line)
+# where each row consists of two columns: (feature number, its occurrences)
+X_list = lapply(dataTokens, function(example) {n = length(example) - 1; matrix(as.numeric(example[2:(n+1)]), ncol=2, byrow=T)})
+
+# Add one column that indicates the example number at the left
+X_list = mapply(cbind, x=1:length(X_list), y=X_list)
+
+# Merge a list of different examples vertcially into a matrix
+X_data = do.call('rbind', X_list)
+#X_data has all the words in each example and the no of occourences of each of those words.
+
+# Get a sparse data matrix X (rows: training exmaples, columns: # of occurrences for each of features)
+Xtest = sparseMatrix(x=X_data[,3], i=X_data[,1], j=X_data[,2])
+```
+
+```{r}
+library(ramify)
+library(Hmisc)
+library(pracma)
+length(Xtest)
+resized_Xtest <- resize(Xtest,2400,51949)
+sparse_resizedXtest = Matrix(resized_Xtest, sparse = TRUE)
+Ytest1 <- ifelse(Ytest==1,1,-1)
+Ytest2 <- ifelse(Ytest==2,1,-1)
+Ytest3 <- ifelse(Ytest==3,1,-1)
+Ytest4 <- ifelse(Ytest==4,1,-1)
+```
+
+```{r}
+pred1 <-predict(svm_y1,sparse_resizedXtest)
+pred2 <-predict(svm_y2,sparse_resizedXtest)
+pred3 <-predict(svm_y3,sparse_resizedXtest)
+pred4 <-predict(svm_y4,sparse_resizedXtest)
+```
+
+```{r}
+library(caret)
+confusionMatrix(table(pred1,Ytest1))
+confusionMatrix(table(pred2,Ytest2))
+confusionMatrix(table(pred3,Ytest3))
+confusionMatrix(table(pred4,Ytest4))
+```
+
+
+```{r}
+w1 <- t(svm_y1$coefs) %*% Xtrain[svm_y1$index, ]
+w2 <- t(svm_y2$coefs) %*% Xtrain[svm_y2$index, ]
+w3 <- t(svm_y3$coefs) %*% Xtrain[svm_y3$index, ]
+w4 <- t(svm_y4$coefs) %*% Xtrain[svm_y4$index, ]
+```
+
+```{r}
+b1 <- svm_y1$rho
+b2 <- svm_y2$rho
+b3 <- svm_y3$rho
+b4 <- svm_y4$rho
+```
+
+```{r}
+multi_svm <- function(w,X,b){
+  return(t(as.matrix(w %*% t(X)+b)))
+}
+```
+
+```{r}
+h <- data.frame(h1=multi_svm(w1,Xtrain,b1),
+                h2=multi_svm(w2,Xtrain,b2),
+                h3=multi_svm(w3,Xtrain,b3),
+                h4=multi_svm(w4,Xtrain,b4))
+```
+
+```{r}
+View(h)
+argmax = apply(h,1,which.max)
+table(Ytrain,argmax)
+
+```
+
+```{r}
+h_test <- data.frame(h1=multi_svm(w1,sparse_resizedXtest,b1),
+                h2=multi_svm(w2,sparse_resizedXtest,b2),
+                h3=multi_svm(w3,sparse_resizedXtest,b3),
+                h4=multi_svm(w4,sparse_resizedXtest,b4))
+argmaxx = apply(h_test,1,which.max)
+table(Ytest,argmaxx)
+```
+
+
+
+```{r}
+cY <- Ytrain
+Ysparse <- as(as.matrix(cY), "dgCMatrix")
+
+Ysparse1 <- as(cbind(as.matrix(Y1),Xtrain), "dgCMatrix")
+Ysparse2 <- as(cbind(as.matrix(Y2),Xtrain), "dgCMatrix")
+Ysparse3 <- as(cbind(as.matrix(Y3),Xtrain), "dgCMatrix")
+Ysparse4 <- as(cbind(as.matrix(Y4),Xtrain), "dgCMatrix")
+
+sparse_combined <- cbind(Ysparse,Xtrain)
+
+splits<-function(data){
+  c1 <- data[1:1000,]
+  c2 <- data[1001:2000,]
+  c3 <- data[2001:3000,]
+  c4 <- data[3001:4000,]
+  
+  val1 <- c1[1:250,]
+  val2 <- c2[251:500,]
+  val3 <- c3[501:750,]
+  val4 <- c4[751:1000,]
+  val <- rbind(val1,val2,val3,val4)
+  
+  train1 <- c1[251:1000,]
+  train2 <- rbind(c2[1:250,],c2[501:1000,])
+  train3 <- rbind(c3[1:500,],c3[751:1000,])
+  train4 <- c4[1:750,]
+  train <- rbind(train1,train2,train3,train4)
+  return(list(train,val))
+  
+}
+```
+
+```{r}
+list_train_val <- splits(sparse_combined)
+trainSet <- list_train_val[[1]]
+trainSet_Y <- trainSet[,1]
+valSet <- list_train_val[[2]]
+valSet_X <- valSet[,2:ncol(valSet)]
+valSet_Y <- valSet[,1]
+
+trainSet1 <- splits(Ysparse1)[[1]]
+trainSet2 <- splits(Ysparse2)[[1]]
+trainSet3 <- splits(Ysparse3)[[1]]
+trainSet4 <- splits(Ysparse4)[[1]]
+
+trainSet1_y <- trainSet1[,1]
+trainSet1_X <- trainSet1[,2:ncol(trainSet1)]
+trainSet2_y <- trainSet2[,1]
+trainSet2_X <- trainSet2[,2:ncol(trainSet1)]
+trainSet3_y <- trainSet3[,1]
+trainSet3_X <- trainSet3[,2:ncol(trainSet1)]
+trainSet4_y <- trainSet4[,1]
+trainSet4_X <- trainSet4[,2:ncol(trainSet1)]
+```
+
+```{r}
+cval <- c(0.125,0.25,0.5,1,2,4,8,16,32,64,128,256,512)
+
+softmargin_cfr <- function(x,y,cost){
+  svm_sm <- svm(x=x,y=y,type="C-classification",scale=FALSE, kernel='linear', cost=cost)
+  w <- t(svm_sm$coefs)%*% x[svm_sm$index, ]
+  b <- svm_sm$rho
+  h <- multi_svm(w,x,b)
+  return(h)
+}
+
+softmargin_pred <- function(x,x_val, y,cost){
+  svm_sm <- svm(x=x,y=y,type="C-classification",scale=FALSE, kernel='linear', cost=cost)
+  w <- t(svm_sm$coefs)%*% x[svm_sm$index, ]
+  b <- svm_sm$rho
+  h <- multi_svm(w,x_val,b)
+  return(h)
+}
+```
+
+```{r}
+train_fxn <- function(cost){
+  h0 <- data.frame(h1=softmargin_cfr(x=trainSet1_X,y=trainSet1_y,cost=cost),
+                   h2=softmargin_cfr(x=trainSet2_X,y=trainSet2_y,cost=cost),
+                   h3=softmargin_cfr(x=trainSet3_X,y=trainSet3_y,cost=cost),
+                   h4=softmargin_cfr(x=trainSet4_X,y=trainSet4_y,cost=cost))
+  h0$class <- apply(h0,1,which.max)
+  h0$Y_val <- trainSet_Y
+  confMTRX <- as.matrix(table(h0$class,h0$Y))
+  return(confMTRX)
+}
+
+val_fxn <- function(cost){
+  h0 <- data.frame(h1=softmargin_pred(x=trainSet1_X,x_val= valSet_X,y=trainSet1_y,cost=cost),
+                   h2=softmargin_pred(x=trainSet2_X,x_val= valSet_X,y=trainSet2_y,cost=cost),
+                   h3=softmargin_pred(x=trainSet3_X,x_val= valSet_X,y=trainSet3_y,cost=cost),
+                   h4=softmargin_pred(x=trainSet4_X,x_val= valSet_X,y=trainSet4_y,cost=cost))
+  h0$class <- apply(h0,1,which.max)
+  h0$Y_val <- valSet_Y
+  confMTRX <- as.matrix(table(h0$class,h0$Y))
+  return(confMTRX)
+}
+```
+
+```{r}
+validation_error <- data.frame(cvalue=cval,validationError=NA)
+
+for(i in 1:length(cval)){
+  ve <- val_fxn(cval[i])[1,1]
+  validation_error$validationError[i]=ve
+}
+
+training_error <- data.frame(cvalue=cval,trainError=NA)
+for(i in 1:length(cval)){
+  te <- train_fxn(cval[i])[1,1]
+  training_error$trainError[i]=te
+}
+
+```
+
+```{r}
+training_error
+plot_g <- cbind(validation_error[,1],validation_error[,2],training_error[,2])
+plot_g[,2]<-(1-plot_g[,2]/250)*100
+plot_g[,3]<-(1-plot_g[,3]/750)*100
+plot_g[,1]<-log(plot_g[,1])
+
+plot(plot_g[,1],plot_g[,2],type='l',col="green")
+lines(plot_g[,1],plot_g[,3],type='l',col="blue")
+```
+
+```{r}
+#Lowest C is 0.125, that is the cost we use
+training_model <- data.frame(h1=softmargin_cfr(x=Xtrain,y=Y1,cost=0.125),
+                             h2=softmargin_cfr(x=Xtrain,y=Y2,cost=0.125),
+                             h3=softmargin_cfr(x=Xtrain,y=Y3,cost=0.125),
+                             h4=softmargin_cfr(x=Xtrain,y=Y4,cost=0.125))
+
+val_model <- data.frame(h1=softmargin_pred(x=Xtrain,x_val=sparse_resizedXtest, y=Y1,cost=0.125),
+                             h2=softmargin_pred(x=Xtrain,x_val=sparse_resizedXtest, y=Y2,cost=0.125),
+                             h3=softmargin_pred(x=Xtrain,x_val=sparse_resizedXtest,y=Y3,cost=0.125),
+                             h4=softmargin_pred(x=Xtrain,x_val=sparse_resizedXtest,y=Y4,cost=0.125))
+```
+
+```{r}
+training_model$argmax <- apply(training_model,1,which.max)
+training_model$Y <- Ytrain
+training_model_confM <- as.matrix(table(training_model$argmax,training_model$Y))
+
+val_model$argmax <- apply(val_model,1,which.max)
+val_model$Y <- Ytest
+val_model_confM <- as.matrix(table(val_model$argmax,val_model$Y))
+
+training_model_confM
+val_model_confM
+#since I've modified the matrix, there is an extra column for comparison, ignore
+```
+
+```{r}
+library(wordspace)
+norm_Xtrain <- normalize.rows(Xtrain)
+norm_Xtest <- normalize.rows(sparse_resizedXtest)
+norm_Xtest <- normalize.rows(resized_Xtest)
+norm_mod <- data.frame(h1=softmargin_cfr(x=norm_Xtrain,y=Y1,cost=0.125),
+                   h2=softmargin_cfr(x=norm_Xtrain,y=Y2,cost=0.125),
+                   h3=softmargin_cfr(x=norm_Xtrain,y=Y3,cost=0.125),
+                   h4=softmargin_cfr(x=norm_Xtrain,y=Y4,cost=0.125))
+
+norm_mod$class <-apply(norm_mod,1,which.max)
+#View(norm_mod_class)
+norm_mod$val <- Ytrain
+cMtrx <- as.matrix(table(norm_mod$class,norm_mod$val))
+cMtrx
+
+valnorm_model <- data.frame(h1=softmargin_pred(x=norm_Xtrain,x_val=norm_Xtest, y=Y1,cost=0.125),
+                             h2=softmargin_pred(x=norm_Xtrain,x_val=norm_Xtest, y=Y2,cost=0.125),
+                             h3=softmargin_pred(x=norm_Xtrain,x_val=norm_Xtest,y=Y3,cost=0.125),
+                             h4=softmargin_pred(x=norm_Xtrain,x_val=norm_Xtest,y=Y4,cost=0.125))
+valnorm_model$argmax <- apply(valnorm_model,1,which.max)
+valnorm_model$Y <- Ytest
+valnorm_model_confM <- as.matrix(table(valnorm_model$argmax,valnorm_model$Y))
+valnorm_model_confM
+```
+

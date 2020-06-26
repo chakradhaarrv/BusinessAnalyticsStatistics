@@ -1,0 +1,117 @@
+---
+title: "pca_q5"
+author: "Chakradhaar Viswatmula"
+date: "4/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+(Q5)
+Generate a synthetic data set with 20 data points for each of the three
+class. Each data point must consist of 50 features, so that we have total 60 × 50 data matrix.
+Feel free to use rnorm() or runif(). Make sure that you should add a mean shift to the data
+points in order to make them three distinctive classes
+```{r}
+set.seed(100)
+y <- rep(c(1,2,3),20 )
+# Matrix w 60 rows 50 columns.
+x <- matrix(rnorm(60*50), ncol=50)
+# Adding a mean shift of .575 units
+x[y==2,]= x[y==2,] - .575
+x[y==3,]= x[y==3,] + .575
+dimnames(x) <- list(rownames(x, do.NULL = FALSE, prefix = "row"),
+                    colnames(x, do.NULL = FALSE, prefix = "col"))
+```
+
+a) Run PCA on these 60 data points. Plot the first two principle axes. Try to use different
+colors to contrast the data points that belong to different classes. If three classes are
+distinctive enough, continue to the next part (b). Otherwise keep synthesizing a new
+dataset until you reach at some degree of separations across three classes in terms of two
+principal component axes
+```{r}
+pca =prcomp(x, scale =FALSE)
+#Plot the first two principal axes
+plot(pca$x[,1:2], col=y, pch =19, xlab ="PC1", ylab="PC2")
+```
+The classes seem distinctive enough.
+
+b) Run K-means clustering with K = 3. Compare the obtained clusters to the true class labels
+```{r}
+km3 =kmeans(x,3, nstart =20)
+table(km3$cluster, y, dnn=c("Cluster","Label"))
+```
+In this case we see that each cluster is assigned to only one label. K means has perfect prediction in this case with no outliers.
+
+c) Run K-means clustering with K = 2. Explain your results in contrast to part (b)
+```{r}
+km2 =kmeans(x,2, nstart =25)
+table(km2$cluster, y, dnn=c("Cluster","Label"))
+```
+
+Above we see that label 2 is assigned perfectly to cluster 2 
+and label 3 is assigned perfectly to cluster 1
+however 15 of the 20 label 1 points in cluster 3 have been assigned to cluster 1 and 5 have been assigned to cluster 2, majority going to cluster 1
+
+Below, you can find a plot showing which points correspond to which of the 2 clusters.
+```{r}
+plot(x[,1:2], col=y, pch=19)
+points(x[km2$cluster==1,1:2], pch=5, cex = 1.5)
+legend("topleft", c(paste("Cluster",unique(km2$cluster))), pch=c(5,27), cex=.7)
+```
+
+Run K-means clustering with K = 4. Explain your results in contrast to part (b)
+```{r}
+km4 =kmeans(x,4, nstart =25)
+table(km4$cluster, y, dnn=c("Cluster","Label"))
+```
+We see most of the points for each label are assigned to one cluster only.
+Label 1 to Cluster 2, Label 3 to Cluster 4.
+Label 2 to cluter 3. The creation of a fourth cluster has pushed some observations into a new cluster(Cluster 1) and caused the occurrence of an outlier in cluster 2(label 2 in cluster 2).
+
+
+d) Now run K-means clustering with K = 3 only on the two principal axes that you discovered in part (a). In other words, run K-means clustering on 60 × 2 matrix. Explain your
+result comparatively to the previous results
+```{r}
+km3pc =kmeans(pca$x[,1:2],3, nstart =25)
+table(km3pc$cluster, y, dnn=c("Cluster","Label"))
+```
+The first two principal components have almost perfectly separated the clusters uniquely. One outlier lies in cluster 1 and one in cluster 2. After reducing the variables from 50 to 2 we have achieved pretty much the same accuracy compared to k-means with 50 variables.
+
+
+e) Given the original 60 × 50 data that you worked on part (b), run K-means clustering
+with K = 3 after standardizing each feature. Explain your result in contrast to part (b)
+```{r}
+x.scale <- scale(x, center = FALSE, scale = TRUE)
+kmscale =kmeans(x.scale, 3, nstart =25)
+table(kmscale$cluster, y, dnn=c("Cluster","Class"))
+```
+Standardizing the features results in similar results.
+
+Finding the reason for similarity:
+i) by comparing column shifts (shifts in mean and SD of col data)
+```{r}
+check.col <- cbind(apply(x.scale,2,sd), apply(x,2,sd), apply(x.scale,2,mean), apply(x,2,mean))
+colnames(check.col) <- c("Scaled Col Sd","Original Col Sd","Scaled Col Mean","Original Col Mean")
+boxplot(check.col, cex.axis=0.7)
+```
+Column means have a slight shift
+
+ii) by comparing row shifts (shifts in mean and SD of row data)
+```{r}
+check.row <- cbind(apply(x.scale,1,mean), apply(x,1,mean))
+colnames(check.row) <- c("Scaled Row Mean","Original Row Mean")
+par(mfrow=c(1,3))
+boxplot(check.row[y==1,], ylim=c(-1,1), main="Class 1")
+boxplot(check.row[y==2,], ylim=c(-1,1), main="Class 2")
+boxplot(check.row[y==3,], ylim=c(-1,1), main="Class 3")
+```
+Row means have shifted slightly but the initial mean shifts(.575) have stayed the same.
+```{r}
+par(mfrow=c(1,1))
+plot(x[,1:2], col =y, pch=19, xlim=c(-3,3), ylim=c(-3,3))
+points(x.scale[,1:2], col =y, pch=1)
+legend(-3,3, c("Original","Scaled"), pch=c(19,1), cex=.8)
+```
+The data points have small shifts with each color shifting its center but looking at the boxplots we can tell it doesn't change much. This results in similar outcomes from with or without scaling
